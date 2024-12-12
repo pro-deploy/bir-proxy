@@ -1,70 +1,60 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const https = require('https');
-const compression = require('compression');
-const cache = require('memory-cache');
 
 const app = express();
 
-// Включаем сжатие
-app.use(compression());
+// Логирование для отладки
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
 
-// Middleware для кэширования
-const cacheMiddleware = (duration) => {
-    return (req, res, next) => {
-        const key = '__express__' + req.originalUrl || req.url;
-        const cachedBody = cache.get(key);
+// Тестовый маршрут
+app.get('/test', (req, res) => {
+    res.send('Proxy server is working!');
+});
 
-        if (cachedBody) {
-            res.send(cachedBody);
-            return;
-        } else {
-            res.sendResponse = res.send;
-            res.send = (body) => {
-                cache.put(key, body, duration * 1000);
-                res.sendResponse(body);
-            }
-            next();
-        }
-    }
-};
-
-// Настройка прокси с оптимизацией
+// Настройка прокси
 const proxy = createProxyMiddleware({
     target: 'https://www.youtube.com',
     changeOrigin: true,
     secure: false,
+    followRedirects: true,
     ws: true,
-    agent: new https.Agent({
-        keepAlive: true,
-        maxSockets: 100,
-        rejectUnauthorized: false
-    }),
+    xfwd: true, // Передаем original headers
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept-Encoding': 'gzip, deflate, br'
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive'
     },
-    // Удаляем строку с Buffer.from
-    proxyTimeout: 60000,
-    timeout: 60000,
-    followRedirects: true,
+    pathRewrite: {
+        '^/youtube/': '/' // Если нужно убрать префикс из URL
+    },
+    router: {
+        // Можно добавить дополнительные маршруты
+        'youtube.com': 'https://www.youtube.com',
+        'youtu.be': 'https://youtu.be'
+    },
     onProxyReq: (proxyReq, req, res) => {
-        proxyReq.setHeader('Connection', 'keep-alive');
-        console.log('Proxying:', req.method, req.url);
+        console.log('Making request to:', proxyReq.path);
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        console.log('Got response with status:', proxyRes.statusCode);
+    },
+    onError: (err, req, res) => {
+        console.error('Proxy error:', err);
+        res.status(500).send('Proxy error occurred');
     }
 });
 
+// Применяем прокси ко всем маршрутам
 app.use('/', proxy);
 
-// Увеличиваем лимиты
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// Запуск с оптимизированными настройками
-const server = app.listen(8080, '0.0.0.0', () => {
-    console.log('Proxy running on 0.0.0.0:8080');
+// Запускаем сервер
+const port = 8080;
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Proxy server running on port ${port}`);
 });
-
-// Оптимизация сервера
-server.keepAliveTimeout = 120000;
-server.headersTimeout = 120000;
