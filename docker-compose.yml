@@ -1,9 +1,7 @@
 version: '3'
 services:
-  squid:
-    image: sameersbn/squid:3.5.27-2
+  proxy:
+    build: .
     ports:
-      - "0.0.0.0:3128:3128"
-    volumes:
-      - ./squid.conf:/etc/squid/squid.conf
+      - "3000:3000"
     restart: always
