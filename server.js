@@ -1,8 +1,8 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const https = require('https');
-const compression = require('compression'); // Добавляем сжатие
-const cache = require('memory-cache'); // Добавляем кэширование
+const compression = require('compression');
+const cache = require('memory-cache');
 
 const app = express();
 
@@ -36,20 +36,19 @@ const proxy = createProxyMiddleware({
     secure: false,
     ws: true,
     agent: new https.Agent({
-        keepAlive: true, // Держим соединение активным
-        maxSockets: 100, // Увеличиваем количество одновременных соединений
+        keepAlive: true,
+        maxSockets: 100,
         rejectUnauthorized: false
     }),
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept-Encoding': 'gzip, deflate, br' // Поддержка сжатия
+        'Accept-Encoding': 'gzip, deflate, br'
     },
-    buffer: Buffer.from(50 * 1024 * 1024), // Увеличиваем буфер
-    proxyTimeout: 60000, // Таймаут в миллисекундах
+    // Удаляем строку с Buffer.from
+    proxyTimeout: 60000,
     timeout: 60000,
     followRedirects: true,
     onProxyReq: (proxyReq, req, res) => {
-        // Оптимизация заголовков
         proxyReq.setHeader('Connection', 'keep-alive');
         console.log('Proxying:', req.method, req.url);
     }
